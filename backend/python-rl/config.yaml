@@ -1,0 +1,92 @@
+# ==============================================================
+# Environment Configuration
+# FILE: backend/python-rl/config.yaml
+# ==============================================================
+environment:
+  observation_size: 161
+
+  action_space_type: "continuous"
+
+  continuous_actions:
+    movement_forward: [-1.0, 1.0]
+    movement_strafe: [-1.0, 1.0]
+    rotation: [-1.0, 1.0]
+    look: [-1.0, 1.0]
+    jump: [0.0, 1.0]
+    place_block: [0.0, 1.0]
+    remove_block: [0.0, 1.0]
+
+  # 🔴 CRITICAL FIX: Reduce episode length from 1800 to 240
+  # OpenAI used 240 timesteps. Your env: 1 step = 5 frames @ 60fps = 83.33ms
+  # 240 steps = 20 seconds (countdownTime: 8s + gameTimeLimit: 12s)
+  max_steps: 240
+
+  rewards:
+    description: "Dense rewards for faster learning - implemented in reward-system.js"
+    per_step:
+      time_penalty: -0.001
+      seeker_sees_hider: 0.01    # Reduced from 0.1 - vision is just bootstrap, catching is the goal!
+    end_of_episode:
+      seeker_caught_hider: 50.0  # Increased from 10.0 - catching is PRIMARY goal!
+      seeker_caught_all: 100.0   # Increased from 20.0 - big bonus for catching all!
+      seeker_caught_none: -10.0  # Increased from -5.0 - stronger penalty for failure
+      hider_survived: 50.0       # Increased from 10.0 - survival is PRIMARY goal for hiders!
+      hider_caught: -50.0        # Increased from -10.0 - strong penalty for getting caught
+
+# ==============================================================
+# PPO Hyperparameters
+# ==============================================================
+ppo:
+  num_gpus: 1
+  
+  # 🔴 CRITICAL FIX: Increase learning rate for faster learning
+  lr_seeker: 0.0003              # Increased from 0.0001
+  lr_hider: 0.0003               # Increased from 0.0001
+
+  # Policy optimization
+  gamma: 0.99                    # Adjusted for shorter episodes (was 0.995)
+  lambda: 0.95                   # Good - keep this
+  clip_param: 0.2                # Good - keep this
+  vf_loss_coeff: 0.5             # Good - keep this
+
+  # 🔴 CRITICAL FIX: Separate entropy coefficients per agent
+  entropy_coeff_seeker: 0.001    # Low for seeker (deterministic seeking)
+  entropy_coeff_hider: 0.01      # High for hider (needs exploration to find good hiding spots!)
+
+  # Batch size (with 240 max_steps: 57600 / 240 = 240 episodes per iteration)
+  train_batch_size: 57600        # Now 240 episodes per iteration (was ~32 with 1800 steps)
+  minibatch_size: 512            # Increased from 256 for better gradient estimates
+  num_epochs: 10                 # Keep same
+
+  # Gradient and KL constraints
+  grad_clip: 0.5                 # Keep same
+  kl_coeff: 0.3                  # Reduced from 1.0 for faster learning
+  kl_target: 0.01                # Keep same
+
+  # ⭐ BIGGER NETWORK - Critical fix!
+  model:
+    fcnet_hiddens: [256, 256]    # Was [128, 128, 64] - doubled size
+    fcnet_activation: "relu"     # Keep same
+
+  # Parallel training
+  num_workers: 0
+  num_envs_per_worker: 1
+
+  # Checkpointing
+  checkpoint_freq: 10
+  checkpoint_dir: "./checkpoints"
+
+# ==============================================================
+# WebSocket Configuration
+# ==============================================================
+websocket:
+  host: "0.0.0.0"
+  port: 8765
+
+# ==============================================================
+# Training Configuration
+# ==============================================================
+training:
+  total_episodes: 1000000
+  eval_frequency: 10
+  log_frequency: 1

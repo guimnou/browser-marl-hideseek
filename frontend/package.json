@@ -1,0 +1,21 @@
+{
+  "name": "minecraft-game-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "http-server public -p 8080 --cors",
+    "dev": "http-server public -p 8080 --cors -c-1"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-vis": "^1.5.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "socket.io": "^4.5.0",
+    "three": "^0.132.2"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "http-server": "^14.1.1",
+    "serve": "^14.2.3"
+  }
+}

@@ -1,0 +1,41 @@
+# PPO Training Environment with CPU, Python, and Node.js
+FROM python:3.10-slim
+
+# Install Python, system tools, AND Node.js/npm
+RUN apt update && apt install -y \
+    git build-essential libgl1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20 and npm
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create workspace for voxel game PPO training
+WORKDIR /workspace
+
+# Copy backend RL dependencies
+COPY backend/python-rl/requirements.txt backend/python-rl/
+
+# Install Python requirements for PPO training
+RUN pip3 install --no-cache-dir -r backend/python-rl/requirements.txt
+RUN pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Copy frontend package.json (if exists) for voxel game UI
+COPY frontend/package*.json frontend/
+
+# Install npm dependencies
+RUN if [ -f frontend/package.json ]; then \
+        cd frontend && npm install; \
+    fi
+
+# Expose ports for PPO training environment
+# 8080: WebSocket for game-backend communication
+# 8765: Alternative WebSocket port
+# 6006: TensorBoard for PPO metrics
+# 3000: Frontend dev server for voxel game
+EXPOSE 6006 8080 8765 3000
+
+# Set default shell
+CMD ["/bin/bash"]

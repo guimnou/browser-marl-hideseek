@@ -1,0 +1,41 @@
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+
+# Install Python 3.11, pip, and system tools
+RUN apt-get update && apt-get install -y \
+    python3.11 python3.11-dev python3.11-distutils \
+    python3-pip \
+    git build-essential curl ca-certificates && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
+    python3 -m pip install --upgrade pip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20.x
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get update && apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Install PyTorch with CUDA 12.1
+RUN pip install --no-cache-dir \
+    torch==2.1.0 --index-url https://download.pytorch.org/whl/cu121
+
+# Install your RL + utility packages
+RUN pip install --no-cache-dir \
+    ray[rllib]==2.50.0 \
+    gymnasium==1.1.1 \
+    numpy==1.26.4 \
+    websockets==12.0 \
+    pandas==2.1.0 \
+    tensorboard==2.15.1 \
+    nest-asyncio==1.5.8 \
+    pyyaml==6.0.1 \
+    matplotlib==3.8.2
+
+# Install Node http-server
+RUN npm install -g http-server
+
+# Expose ports for web UI, RL env, tensorboard, Node
+EXPOSE 8080 8765 6006 3000
+
+CMD ["/bin/bash"]

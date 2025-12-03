@@ -1,0 +1,380 @@
+// ==============================================================
+// FILE: research/src/npc/hide-seek-manager.js
+// ==============================================================
+
+import { NPC } from "./config-npc-behavior.js";
+import { HideSeekManagerLogger } from "../ml/log/hide-seek-manager-logger.js";
+import sessionManager from "../ml/log/session-manager.js";
+
+export class HideSeekManager {
+  constructor(scene) {
+    this.scene = scene;
+    this.gameState = NPC.GAME_STATES.WAITING;
+    this.npcs = [];
+    this.seekers = [];
+    this.seeker = null;
+    this.hiders = [];
+    this.gameStartTime = 0;
+    this.countdownStartTime = 0;
+    this.gameTimeLimit = NPC.HIDE_AND_SEEK.gameTimeLimit;
+    this.countdownTime = NPC.HIDE_AND_SEEK.countdownTime;
+    this.hidersFound = 0;
+    this.gameRunning = false;
+    this.visualIndicators = new Map();
+
+    this.logger = new HideSeekManagerLogger("http://localhost:3001", {
+      enabled: true,
+      logLevel: "INFO",
+      sessionDir: sessionManager.getSessionDir(),
+    });
+
+    this.lastCountdownSecond = -1;
+  }
+
+  initializeGame(npcs, spawnSystem, chunkManager = null) {
+    const requiredNPCs =
+      NPC.HIDE_AND_SEEK.seekerCount + NPC.HIDE_AND_SEEK.hiderCount;
+
+    this.logger.logGameInitialization(npcs?.length || 0, requiredNPCs);
+
+    if (!npcs || npcs.length < requiredNPCs) {
+      this.logger.logGameInitializationFailed(npcs?.length || 0, requiredNPCs);
+      return false;
+    }
+
+    this.npcs = npcs.slice(0, requiredNPCs);
+    this.assignRoles();
+    this.setupVisualIndicators();
+
+    if (spawnSystem && chunkManager) {
+      spawnSystem.verifySpawnDistances(
+        this.seekers,
+        this.hiders,
+        this.logger,
+        chunkManager
+      );
+    }
+
+    this.resetGameState();
+
+    this.logger.logGameInitializationSuccess();
+    return true;
+  }
+
+  resetGameState() {
+    const oldState = this.gameState;
+    this.gameState = NPC.GAME_STATES.COUNTDOWN;
+    this.countdownStartTime = Date.now();
+    this.hidersFound = 0;
+    this.gameRunning = true;
+    this.lastCountdownSecond = -1;
+
+    this.logger.logStateChange(oldState, this.gameState);
+    this.logger.logCountdownStart(this.countdownTime);
+
+    this.npcs.forEach((npc) => {
+      npc.justCaughtHider = false;
+      npc.caughtTime = null;
+    });
+  }
+
+  assignRoles() {
+    const seekerCount = NPC.HIDE_AND_SEEK.seekerCount;
+    const hiderCount = NPC.HIDE_AND_SEEK.hiderCount;
+
+    this.logger.logRoleAssignment(seekerCount, hiderCount);
+
+    this.seekers = this.npcs.slice(0, seekerCount);
+    this.seekers.forEach((seeker) => {
+      this.initializeNPC(seeker, "seeker", NPC.GAME_STATES.WAITING);
+      this.logger.logNPCRole(
+        seeker.userData.id,
+        "seeker",
+        NPC.GAME_STATES.WAITING
+      );
+    });
+
+    this.seeker = this.seekers[0];
+
+    this.hiders = this.npcs.slice(seekerCount, seekerCount + hiderCount);
+    this.hiders.forEach((hider) => {
+      this.initializeNPC(hider, "hider", NPC.GAME_STATES.HIDDEN);
+      this.logger.logNPCRole(
+        hider.userData.id,
+        "hider",
+        NPC.GAME_STATES.HIDDEN
+      );
+    });
+  }
+
+  initializeNPC(npc, role, state) {
+    npc.role = role;
+    npc.hideSeekState = state;
+    npc.jumpCooldown = 0;
+    npc.lastSeenHider = null;
+    npc.isDetected = false;
+    npc.detectionTimer = 0;
+    npc.lastPosition = npc.position.clone();
+    npc.mlControlled = false;
+
+    npc.inPreparationPhase = role === "seeker";
+  }
+
+  endGame(reason) {
+    const gameStats = {
+      hidersFound: this.hidersFound,
+      totalHiders: this.hiders.length,
+      gameTime: this.gameStartTime > 0 ? Date.now() - this.gameStartTime : 0,
+    };
+
+    this.logger.logGameEnd(reason, gameStats);
+
+    this.gameState = NPC.GAME_STATES.GAME_OVER;
+    this.gameRunning = false;
+
+    this.npcs.forEach((npc) => {
+      npc.role = null;
+      npc.mlControlled = false;
+    });
+  }
+
+  restartGame() {
+    this.logger.logGameRestart();
+    this.endGame("restart");
+    
+    const requiredNPCs =
+        NPC.HIDE_AND_SEEK.seekerCount + NPC.HIDE_AND_SEEK.hiderCount;
+    if (this.npcs.length >= requiredNPCs) {
+        this.initializeGame(this.npcs);
+    }
+  }
+
+  update(deltaTime) {
+    if (!this.gameRunning) return;
+
+    this.updateGameState();
+
+    if (this.gameState === NPC.GAME_STATES.SEEKING) {
+      this.checkDetections();
+      this.checkWinConditions();
+    }
+  }
+
+  updateGameState() {
+    const now = Date.now();
+
+    switch (this.gameState) {
+      case NPC.GAME_STATES.COUNTDOWN:
+        const timeInCountdown = now - this.countdownStartTime;
+        const remaining = this.countdownTime - timeInCountdown;
+        const secondsRemaining = Math.ceil(remaining / 1000);
+
+        if (
+          secondsRemaining !== this.lastCountdownSecond &&
+          secondsRemaining > 0
+        ) {
+          this.logger.logCountdownTick(secondsRemaining);
+          this.lastCountdownSecond = secondsRemaining;
+        }
+
+        if (timeInCountdown < this.countdownTime) {
+          this.seekers.forEach((seeker) => {
+            seeker.inPreparationPhase = true;
+            seeker.velocity = { x: 0, y: 0, z: 0 };
+            seeker.isMoving = false;
+          });
+
+          this.hiders.forEach((hider) => {
+            hider.inPreparationPhase = false;
+          });
+        } else {
+          const oldState = this.gameState;
+          this.gameState = NPC.GAME_STATES.SEEKING;
+          this.gameStartTime = now;
+
+          this.logger.logStateChange(oldState, this.gameState);
+          this.logger.logSeekingPhaseStart();
+
+          this.seekers.forEach((seeker) => {
+            seeker.hideSeekState = NPC.GAME_STATES.SEEKING;
+            seeker.inPreparationPhase = false;
+          });
+        }
+        break;
+
+      case NPC.GAME_STATES.SEEKING:
+        if (now - this.gameStartTime >= this.gameTimeLimit) {
+          this.logger.logGameTimeout();
+          this.endGame("timeout");
+        }
+        break;
+    }
+  }
+
+  checkDetections() {
+    this.hiders.forEach((hider) => {
+      if (hider.hideSeekState === NPC.GAME_STATES.FOUND) return;
+
+      const catchingSeeker = this.seekers.find((seeker) => {
+        const distance = seeker.position.distanceTo(hider.position);
+        return distance < 2;
+      });
+
+      if (catchingSeeker) {
+        this.processDetection(hider, catchingSeeker);
+      } else {
+        if (hider.isDetected) {
+          this.logger.logDetectionReset(hider.userData.id);
+        }
+        this.resetDetection(hider);
+      }
+    });
+  }
+
+  processDetection(hider, catchingSeeker) {
+    if (!hider.isDetected) {
+      hider.isDetected = true;
+      hider.detectionTimer = Date.now();
+      hider.caughtBySeeker = catchingSeeker;
+
+      const distance = catchingSeeker.position.distanceTo(hider.position);
+      this.logger.logDetectionStarted(
+        catchingSeeker.userData.id,
+        hider.userData.id,
+        distance
+      );
+    } else {
+      const detectionTime = Date.now() - hider.detectionTimer;
+
+      this.logger.logDetectionProgress(
+        hider.userData.id,
+        detectionTime,
+        NPC.HIDE_AND_SEEK.SEEKER.detectionTime
+      );
+
+      if (detectionTime >= NPC.HIDE_AND_SEEK.SEEKER.detectionTime) {
+        this.catchHider(hider, hider.caughtBySeeker);
+      }
+    }
+  }
+
+  resetDetection(hider) {
+    hider.isDetected = false;
+    hider.detectionTimer = 0;
+    hider.caughtBySeeker = null;
+  }
+
+  catchHider(hider, catchingSeeker) {
+    const gameTime = Date.now() - this.gameStartTime;
+
+    this.logger.logHiderCaught(
+      catchingSeeker.userData.id,
+      hider.userData.id,
+      gameTime,
+      this.hidersFound + 1,
+      this.hiders.length
+    );
+
+    hider.hideSeekState = NPC.GAME_STATES.FOUND;
+    this.hidersFound++;
+    hider.visible = false;
+    hider.position.y = -100;
+    hider.velocity = { x: 0, y: 0, z: 0 };
+    hider.isMoving = false;
+
+    if (this.visualIndicators.has(hider)) {
+      const indicator = this.visualIndicators.get(hider);
+      indicator.visible = false;
+      if (indicator.parent) {
+        indicator.parent.remove(indicator);
+      }
+    }
+
+    hider.caughtTime = Date.now();
+    catchingSeeker.lastCatchTime = Date.now();
+    catchingSeeker.justCaughtHider = true;
+  }
+
+  checkWinConditions() {
+    if (this.hidersFound >= this.hiders.length) {
+      const gameTime = Date.now() - this.gameStartTime;
+      this.logger.logSeekerVictory(this.hidersFound, gameTime);
+      this.endGame("seeker_wins");
+    }
+  }
+
+  setupVisualIndicators() {
+    // 🔴 FIX: Properly dispose old indicators to prevent GPU memory leak
+    this.visualIndicators.forEach((indicator) => {
+      if (indicator.parent) {
+        indicator.parent.remove(indicator);
+      }
+
+      // Dispose geometry and material to free GPU memory
+      if (indicator.geometry) {
+        indicator.geometry.dispose();
+      }
+      if (indicator.material) {
+        indicator.material.dispose();
+      }
+    });
+    this.visualIndicators.clear();
+
+    if (!NPC.VISUALS.showNPCStatus) return;
+
+    this.logger.logVisualIndicatorsSetup(this.npcs.length);
+
+    this.npcs.forEach((npc) => {
+      const indicator = this.createRoleIndicator(npc);
+      if (indicator) {
+        npc.add(indicator);
+        this.visualIndicators.set(npc, indicator);
+
+        const color =
+          npc.role === "seeker"
+            ? NPC.HIDE_AND_SEEK.SEEKER.visualIndicatorColor
+            : NPC.HIDE_AND_SEEK.HIDER.visualIndicatorColor;
+
+        this.logger.logVisualIndicatorCreated(npc.userData.id, npc.role, color);
+      }
+    });
+  }
+
+  createRoleIndicator(npc) {
+    const geometry = new THREE.ConeGeometry(0.2, 0.6, 8);
+    const color =
+      npc.role === "seeker"
+        ? NPC.HIDE_AND_SEEK.SEEKER.visualIndicatorColor
+        : NPC.HIDE_AND_SEEK.HIDER.visualIndicatorColor;
+
+    const material = new THREE.MeshBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.8,
+    });
+
+    const indicator = new THREE.Mesh(geometry, material);
+    indicator.position.y = 2.5;
+    indicator.rotation.x = Math.PI;
+
+    return indicator;
+  }
+
+  getGameStatus() {
+    return {
+      state: this.gameState,
+      hidersFound: this.hidersFound,
+      totalHiders: this.hiders.length,
+      gameTime: this.gameStartTime > 0 ? Date.now() - this.gameStartTime : 0,
+      timeLimit: this.gameTimeLimit,
+      gameStartTime: this.gameStartTime,
+    };
+  }
+
+  cleanup() {
+    this.logger.logStats();
+    this.logger.close();
+  }
+}
+
+export default HideSeekManager;

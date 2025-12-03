@@ -1,0 +1,18 @@
+# Exact versions from your training machine
+ray[rllib]==2.50.0
+gymnasium==1.1.1
+torch==2.1.0
+numpy==1.26.4
+websockets==12.0
+pandas==2.1.0
+tensorboard==2.15.1
+nest-asyncio==1.5.8
+pyyaml==6.0.1
+
+# Additional dependencies that were installed
+cloudpickle==3.1.1
+matplotlib==3.8.2
+scipy==1.14.1
+scikit-image==0.24.0
+dm-tree==0.1.8
+lz4==4.3.3

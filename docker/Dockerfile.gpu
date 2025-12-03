@@ -1,0 +1,25 @@
+# Base image with CUDA + cuDNN (works on most GPUs)
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+
+# Install Python and system tools
+RUN apt update && apt install -y \
+    python3 python3-pip python3-venv git build-essential libgl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create workspace
+WORKDIR /workspace
+
+# Copy backend RL dependencies
+COPY backend/python-rl/requirements.txt .
+
+# Install requirements
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Optional: install RLlib dependencies properly (fixes torch + CUDA issues)
+RUN pip3 install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu121
+
+# Expose ports for WebSocket + TensorBoard
+EXPOSE 6006 8080 8765
+
+# Set default shell
+CMD ["/bin/bash"]

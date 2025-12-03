@@ -1,0 +1,33 @@
+{
+  "name": "PPO Voxel Game Training Environment",
+  "dockerFile": "../Dockerfile.cpu",
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  
+  "forwardPorts": [8080, 8765, 6006, 3000],
+  
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python3",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.env.linux": {
+          "PROJECT_NAME": "PPO Voxel Training"
+        }
+      }
+    }
+  },
+  
+  "postCreateCommand": "echo 'PPO Training Environment Ready'",
+  
+  "remoteUser": "root"
+}
